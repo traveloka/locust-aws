@@ -10,7 +10,7 @@ import six
 import json
 import boto3
 from datetime import datetime
-
+import tempfile
 
 # Inputs
 # host
@@ -62,7 +62,12 @@ def parse_options():
 
     parser.add_argument(
         '--cloudwatch-metric-ns',
-        help="Stop after the specified amount of time, e.g. (300s, 20m, 3h, 1h30m, etc.)."
+        help="Namespace to publish cloudwatch metrics to. Publishes only when namespace is set"
+    )
+
+    parser.add_argument(
+        '--ssh-pvt-key-ssm-param-name',
+        help="SSM parameter name to get private key from"
     )
 
     opt = parser.parse_args()
@@ -95,7 +100,18 @@ PERCENTILES_TO_REPORT = [
 def main():
     options = parse_options()
 
-    locustfile_selector = LocustFileSelectorPipeline([GitLocustFileSelectorMiddleware()])
+    ssh_pvt_key_ssm_param_name = options.ssh_pvt_key_ssm_param_name
+
+    ssh_identity_file = tempfile.mktemp() if ssh_pvt_key_ssm_param_name is not None else None
+
+    if ssh_identity_file is not None:
+        ssm = boto3.client('ssm')
+        ssh_pvt_key = ssm.get_parameter(Name=ssh_pvt_key_ssm_param_name, WithDecryption=True)['Parameter']['Value']
+        with open(ssh_identity_file, "w") as file:
+            file.write(ssh_pvt_key)
+
+    locustfile_selector = LocustFileSelectorPipeline(
+        [GitLocustFileSelectorMiddleware(ssh_identity_file=ssh_identity_file)])
 
     locustfile_source = locustfile_selector.select(options.locustfile_source)
 
@@ -206,6 +222,8 @@ def main():
             cloudwatch.put_metric_data(Namespace=namespace, MetricData=metric_data)
 
     def on_exit(**kwargs):
+        if ssh_identity_file is not None:
+            os.remove(ssh_identity_file)
         locustfile_source.cleanup()
         print_formatted_stats_on_primary_node(runners.locust_runner.stats)
         report_to_cloudwatch_metrics(runners.locust_runner.stats)

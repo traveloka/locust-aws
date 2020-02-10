@@ -8,19 +8,23 @@ import shutil
 
 class GitLocustFileSelectorMiddleware(LocustFileSourceSelectorMiddleware):
 
+    def __init__(self, **kvargs):
+        self.kvargs = kvargs
+
     def invoke(self, context, call_next):
         source = context.source
         if not source.startswith('git::'):
             call_next(context)
             return
-        context.file_source = GitLocustFileSource(source)
+        context.file_source = GitLocustFileSource(source, **self.kvargs)
 
 
 class GitLocustFileSource(LocustFileSource):
 
-    def __init__(self, source):
+    def __init__(self, source, **kvargs):
         self.source = source
         self.temp_dir = None
+        self.ssh_identity_file = kvargs.get('ssh_identity_file')
 
     def fetch(self):
         temp_dir = self.temp_dir = tempfile.mkdtemp()
@@ -36,7 +40,8 @@ class GitLocustFileSource(LocustFileSource):
         if ref is not None:
             kwargs['branch'] = ref
 
-        Repo.clone_from(url, str(temp_dir), **kwargs)
+        env = {"GIT_SSH_COMMAND": f'ssh -i "{self.ssh_identity_file}"'} if self.ssh_identity_file is not None else None
+        Repo.clone_from(url, str(temp_dir), env=env, **kwargs)
 
         return str(Path(temp_dir) / Path(path.strip('/\\')))
 
@@ -49,4 +54,11 @@ class GitLocustFileSource(LocustFileSource):
     def __parse_source(self):
         pattern = r"git::((?:[^:/?#]+)://)?((?:(?!(?://|\?)).)*)((?:(?!\?).)*)(\?.+)?"
         m = re.match(pattern, self.source)
-        return m.group(1) + m.group(2), m.group(3), m.group(4)
+
+        def xstr(s):
+            if s is None:
+                return ''
+            else:
+                return s
+
+        return xstr(m.group(1)) + xstr(m.group(2)), xstr(m.group(3)), xstr(m.group(4))
