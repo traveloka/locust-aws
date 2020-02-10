@@ -40,7 +40,7 @@ class GitLocustFileSource(LocustFileSource):
         if ref is not None:
             kwargs['branch'] = ref
 
-        env = {"GIT_SSH_COMMAND": f'ssh -i "{self.ssh_identity_file}"'} if self.ssh_identity_file is not None else None
+        env = {"GIT_SSH_COMMAND": f'ssh -i "{self.ssh_identity_file}" -o StrictHostKeyChecking=no'} if self.ssh_identity_file is not None else None
         Repo.clone_from(url, str(temp_dir), env=env, **kwargs)
 
         return str(Path(temp_dir) / Path(path.strip('/\\')))

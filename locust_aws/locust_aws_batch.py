@@ -102,13 +102,18 @@ def main():
 
     ssh_pvt_key_ssm_param_name = options.ssh_pvt_key_ssm_param_name
 
-    ssh_identity_file = tempfile.mktemp() if ssh_pvt_key_ssm_param_name is not None else None
+    def get_ssh_identity_file():
+        if ssh_pvt_key_ssm_param_name is not None:
+            ssm = boto3.client('ssm')
+            ssh_pvt_key = ssm.get_parameter(Name=ssh_pvt_key_ssm_param_name, WithDecryption=True)['Parameter']['Value']
+            fd, file_name = tempfile.mkstemp()
+            with open(file_name, 'w') as file:
+                file.write(ssh_pvt_key)
+                os.close(fd)
+                return file_name
+        return None
 
-    if ssh_identity_file is not None:
-        ssm = boto3.client('ssm')
-        ssh_pvt_key = ssm.get_parameter(Name=ssh_pvt_key_ssm_param_name, WithDecryption=True)['Parameter']['Value']
-        with open(ssh_identity_file, "w") as file:
-            file.write(ssh_pvt_key)
+    ssh_identity_file = get_ssh_identity_file()
 
     locustfile_selector = LocustFileSelectorPipeline(
         [GitLocustFileSelectorMiddleware(ssh_identity_file=ssh_identity_file)])
