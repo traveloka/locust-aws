@@ -12,6 +12,7 @@ import boto3
 from datetime import datetime
 import tempfile
 
+
 # Inputs
 # host
 # git url to file
@@ -221,6 +222,8 @@ def main():
         if namespace is None:
             return
 
+        if options.master_host is None:  # represents that this is the master node. Report metrics only for master nodes
+            return
         ensure_cloudwatch_client_created()
         for entry in six.itervalues(stats.entries):
             metric_data = create_metric_data(entry)
