@@ -267,14 +267,13 @@ def main():
 
     if options.master_host is not None:
         argv += ['--slave', '--master-host', str(options.master_host)]
+        if options.step_time:
+            argv += ['--step-time', options.step_time, '--step-clients', str(options.step_clients)]
     else:
         argv += ['--run-time', options.run_time]
 
     if options.step_load:
         argv += ['--step-load']
-
-    if options.step_time:
-        argv += ['--step-time', options.step_time, '--step-clients', str(options.step_clients)]
 
     sys.argv = argv
 
