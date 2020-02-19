@@ -61,6 +61,27 @@ def parse_options():
         help="Stop after the specified amount of time, e.g. (300s, 20m, 3h, 1h30m, etc.)."
     )
 
+    # Enable Step Load mode
+    parser.add_argument(
+        '--step-load',
+        action='store_true',
+        help="Enable Step Load mode to monitor how performance metrics varies when user load increases. Requires --step-clients and --step-time to be specified."
+    )
+
+    # Number of clients to incease by Step
+    parser.add_argument(
+        '--step-clients',
+        type=int,
+        default=1,
+        help="Client count to increase by step in Step Load mode. Only used together with --step-load"
+    )
+
+    # Time limit of each step
+    parser.add_argument(
+        '--step-time',
+        help="Step duration in Step Load mode, e.g. (300s, 20m, 3h, 1h30m, etc.). Only used together with --step-load"
+    )
+
     parser.add_argument(
         '--cloudwatch-metric-ns',
         help="Namespace to publish cloudwatch metrics to. Publishes only when namespace is set"
@@ -222,7 +243,8 @@ def main():
         if namespace is None:
             return
 
-        if options.master_host is None:  # represents that this is the master node. Report metrics only for master nodes
+        if options.master_host is not None:  # represents that this is the master node
+            #  Metrics will not be reported if this is not the master node
             return
         ensure_cloudwatch_client_created()
         for entry in six.itervalues(stats.entries):
@@ -247,6 +269,12 @@ def main():
         argv += ['--slave', '--master-host', str(options.master_host)]
     else:
         argv += ['--run-time', options.run_time]
+
+    if options.step_load:
+        argv += ['--step-load']
+
+    if options.step_time:
+        argv += ['--step-time', options.step_time, '--step-clients', str(options.step_clients)]
 
     sys.argv = argv
 
